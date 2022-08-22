@@ -23,9 +23,6 @@ async def create_and_validate_token(host, port, password) -> Tuple[whatsminer.Wh
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
-
     async def async_step_user(
             self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
