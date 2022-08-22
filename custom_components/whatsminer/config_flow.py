@@ -45,9 +45,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(title="Whatsminer", data={TOKEN: token})
 
         data_schema = {
-            vol.Required("host"): str,
-            vol.Optional("port", default=4028): int,
-            vol.Required("password"): str,
+            vol.Required(CONF_HOST): str,
+            vol.Optional(CONF_PORT, default=4028): int,
+            vol.Required(CONF_PASSWORD): str,
         }
 
         return self.async_show_form(step_id="user", data_schema=vol.Schema(data_schema), errors=errors)
