@@ -33,7 +33,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.warning("Connect", exc_info=e)
                 errors["base"] = "cannot_connect"
             except json.JSONDecodeError as e:
-                _LOGGER.info("Failed to read from miner", exc_info=e)
+                _LOGGER.warning("Failed to read from miner", exc_info=e)
                 errors["base"] = "invalid_auth"
             except Exception as e:
                 _LOGGER.warning("Unknown error", exc_info=e)
@@ -45,7 +45,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     self._abort_if_unique_id_configured()
 
                     return self.async_create_entry(title="Whatsminer", data={MINER: token})
-                except Exception:
+                except Exception as e:
+                    _LOGGER.warning("Unknown error", exc_info=e)
                     errors["base"] = "unknown"
 
         data_schema = {
