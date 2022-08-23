@@ -29,7 +29,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             host, port, password = user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_PASSWORD]
             try:
                 token, summary = await create_and_validate_token(host, port, password)
-            except (asyncio.TimeoutError, aiohttp.ClientError):
+            except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+                _LOGGER.warning("Connect", exc_info=e)
                 errors["base"] = "cannot_connect"
             except json.JSONDecodeError as e:
                 _LOGGER.info("Failed to read from miner", exc_info=e)

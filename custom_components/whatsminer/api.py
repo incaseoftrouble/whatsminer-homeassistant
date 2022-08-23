@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 class WhatsminerAPI(object):
-    def __init__(self, ip_address: str, port: int = 4028, admin_password: str = None):
-        self.ip_address = ip_address
+    def __init__(self, host: str, port: int = 4028, admin_password: str = None):
+        self.host = host
         self.port = port
         self._admin_password = admin_password
         self._token = None
@@ -28,7 +28,7 @@ class WhatsminerAPI(object):
         self._cipher = None
 
     async def _communicate_raw(self, data: str) -> str:
-        r, w = await asyncio.open_connection(host=self.ip_address, port=self.port)
+        r, w = await asyncio.open_connection(host=self.host, port=self.port)
         w.write(data.encode('utf-8'))
         w.close()
         return (await r.read()).decode("utf-8")
