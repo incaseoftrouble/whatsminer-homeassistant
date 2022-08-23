@@ -2,19 +2,20 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import FREQUENCY_MEGAHERTZ
-from homeassistant.core import callback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.core import callback, HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
-from . import get_coordinator
-from .const import DOMAIN
+from .const import DOMAIN, COORDINATOR
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
-    coordinator = await get_coordinator(hass, entry)
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+    coordinator: DataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR]
 
     async_add_entities(
-        HashRateSensor(coordinator)
+        [HashRateSensor(coordinator)]
     )
 
 

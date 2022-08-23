@@ -1,6 +1,6 @@
 DOMAIN = "whatsminer"
 COORDINATOR = "coordinator"
-TOKEN = "token"
+MINER = "miner_api"
 
 CONF_HOST = "hostname"
 CONF_PORT = "port"
