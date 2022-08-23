@@ -39,11 +39,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.warning("Unknown error", exc_info=e)
                 errors["base"] = "unknown"
             else:
-                mac_address = format_mac(summary["mac"])
-                await self.async_set_unique_id(mac_address)
-                self._abort_if_unique_id_configured()
+                try:
+                    mac_address = format_mac(summary["mac"])
+                    await self.async_set_unique_id(mac_address)
+                    self._abort_if_unique_id_configured()
 
-                return self.async_create_entry(title="Whatsminer", data={MINER: token})
+                    return self.async_create_entry(title="Whatsminer", data={MINER: token})
+                except Exception:
+                    errors["base"] = "unknown"
 
         data_schema = {
             vol.Required(CONF_HOST): str,

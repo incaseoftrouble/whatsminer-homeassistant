@@ -3,6 +3,7 @@
   "config": {
     "step": {
       "user": {
+        "title": "Whatsminer",
         "description": "Specify Whatsminer machine",
         "data": {
           "host": "Host or IP address",
@@ -17,7 +18,7 @@
       "unknown": "Unknown error occurred."
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
     }
   }
 }
