@@ -31,9 +31,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 token, summary = await create_and_validate_token(host, port, password)
             except (asyncio.TimeoutError, aiohttp.ClientError):
                 errors["base"] = "cannot_connect"
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                _LOGGER.info("Failed to read from miner", exc_info=e)
                 errors["base"] = "invalid_auth"
-            except Exception:
+            except Exception as e:
+                _LOGGER.warning("Unknown error", exc_info=e)
                 errors["base"] = "unknown"
             else:
                 mac_address = format_mac(summary["mac"])

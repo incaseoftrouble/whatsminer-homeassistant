@@ -1,0 +1,19 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Specify Whatsminer machine",
+        "data": {
+          "host": "Host or IP address",
+          "port": "Port",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to miner",
+      "invalid_auth": "Invalid password",
+      "unknown": "Unknown error occurred."
+    }
+  }
+}
