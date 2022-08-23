@@ -31,18 +31,16 @@ class WhatsminerAPI(object):
         r, w = await asyncio.open_connection(host=self.ip_address, port=self.port)
         w.write(data.encode('utf-8'))
         w.close()
-        response = await r.read()
-        return response.decode("utf-8")
+        return (await r.read()).decode("utf-8")
 
-    async def _communicate(self, cmd: str, additional: Optional[Dict[str, Any]] = None, encrypted=False):
+    async def _communicate(self, cmd: str, additional: Optional[Dict[str, Any]] = None, encrypted=False) -> Dict:
         if additional:
             data = dict(additional)
         else:
             data = {}
         data["cmd"] = cmd
         if encrypted:
-            await self._ensure_write_access()
-            data["token"] = self._token
+            data["token"] = await self._get_token()
 
         msg = json.dumps(data)
 
@@ -61,7 +59,7 @@ class WhatsminerAPI(object):
             return json.loads(resp_plaintext)
         return response
 
-    async def _ensure_write_access(self):
+    async def _get_token(self) -> str:
         """
         Encryption algorithm:
         Ciphertext = aes256(plaintext)，ECB mode
@@ -77,7 +75,7 @@ class WhatsminerAPI(object):
         now = datetime.datetime.now()
 
         if self._token_time is not None and (now - self._token_time).total_seconds() < 29 * 60:
-            return
+            return self._token
 
         response = json.loads(await self._communicate_raw(json.dumps({'cmd': 'get_token'})))
         token_info = response["Msg"]
@@ -88,12 +86,12 @@ class WhatsminerAPI(object):
         self._cipher = AES.new(binascii.unhexlify(hashlib.sha256(key.encode()).hexdigest().encode()), AES.MODE_ECB)
         self._token = crypt(key + token_info["time"], "$1$" + token_info["newsalt"] + '$').split('$')[3]
         self._token_time = now
-        return
+        return self._token
 
-    async def read(self, cmd: str, additional_params: Optional[Dict] = None):
+    async def read(self, cmd: str, additional_params: Optional[Dict] = None) -> Dict[str, Any]:
         return await self._communicate(cmd, additional_params, encrypted=False)
 
-    async def write_command(self, cmd: str, additional_params: Optional[Dict] = None):
+    async def write(self, cmd: str, additional_params: Optional[Dict] = None) -> Dict[str, Any]:
         return await self._communicate(cmd, additional_params, encrypted=True)
 
 
@@ -109,6 +107,6 @@ def crypt(word, salt):
 
 
 def pad(s):
-    while len(s) % 16 != 0:
-        s += '\0'
+    if len(s) % 16:
+        s += '\0' * (16 - len(s) % 16)
     return str.encode(s, "utf-8")

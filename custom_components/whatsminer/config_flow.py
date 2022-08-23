@@ -16,8 +16,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def create_and_validate_token(host, port, password) -> Tuple[WhatsminerAPI, Dict]:
-    token = WhatsminerAPI(host, port, password)
-    return token, await token.read(cmd="summary")
+    api = WhatsminerAPI(host, port, password)
+    return api, await api.read(cmd="summary")
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
