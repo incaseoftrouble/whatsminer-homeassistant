@@ -9,7 +9,7 @@ from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.device_registry import format_mac
 
-from api import WhatsminerAPI
+from .api import WhatsminerAPI
 from .const import MINER, DOMAIN, CONF_HOST, CONF_PORT, CONF_PASSWORD
 
 _LOGGER = logging.getLogger(__name__)
