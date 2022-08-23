@@ -1,5 +1,6 @@
 """
-Taken from https://github.com/satoshi-anonymoto/whatsminer-api
+Taken from https://github.com/satoshi-anonymoto/whatsminer-api and
+https://aws-microbt-com-bucket.s3.us-west-2.amazonaws.com/WhatsminerAPI%20V2.0.4.pdf
 """
 import asyncio
 import base64
@@ -18,6 +19,70 @@ from passlib.hash import md5_crypt
 logger = logging.getLogger(__name__)
 
 
+class WhatsminerException(BaseException):
+    pass
+
+
+class InvalidCommand(WhatsminerException):
+    def __init__(self, message):
+        super(InvalidCommand, self).__init__()
+        self.message = message
+
+
+class InvalidResponse(WhatsminerException):
+    pass
+
+
+class InvalidMessage(WhatsminerException):
+    pass
+
+
+class ApiPermissionDenied(WhatsminerException):
+    pass
+
+
+class CommandError(WhatsminerException):
+    pass
+
+
+class TokenError(WhatsminerException):
+    pass
+
+
+class TokenExceeded(WhatsminerException):
+    pass
+
+
+class DecodeError(WhatsminerException):
+    pass
+
+
+class MinerOffline(WhatsminerException):
+    pass
+
+
+def _check_response(message, response):
+    if "STATUS" not in response:
+        print(response)
+        raise InvalidResponse(response)
+    if response["STATUS"] == "E":
+        code = response["Code"]
+        if code == 14:
+            raise InvalidCommand(message)
+        if code == 23:
+            raise InvalidMessage(message)
+        if code == 45:
+            raise ApiPermissionDenied(message)
+        if code == 132:
+            raise CommandError(message, response)
+        if code == 135:
+            raise TokenError()
+        if code == 136:
+            raise TokenExceeded()
+        if code == 137:
+            raise DecodeError(message)
+
+
 class WhatsminerAPI(object):
     def __init__(self, host: str, port: int = 4028, admin_password: str = None):
         self.host = host
@@ -30,8 +95,9 @@ class WhatsminerAPI(object):
     async def _communicate_raw(self, data: str) -> str:
         r, w = await asyncio.open_connection(host=self.host, port=self.port)
         w.write(data.encode('utf-8'))
+        response = await r.readline()
         w.close()
-        return (await r.read()).decode("utf-8")
+        return response.decode("utf-8")
 
     async def _communicate(self, cmd: str, additional: Optional[Dict[str, Any]] = None, encrypted=False) -> Dict:
         if additional:
@@ -42,22 +108,32 @@ class WhatsminerAPI(object):
         if encrypted:
             data["token"] = await self._get_token()
 
-        msg = json.dumps(data)
+        plain_message = json.dumps(data)
 
         if encrypted:
-            enc_str = str(base64.encodebytes(self._cipher.encrypt(pad(msg))), encoding='utf8').replace('\n', '')
-            msg = json.dumps({'enc': 1, 'data': enc_str})
+            enc_str = base64.encodebytes(self._cipher.encrypt(pad(plain_message))).decode("utf-8").replace('\n', '')
+            message = json.dumps({'enc': 1, 'data': enc_str})
+        else:
+            message = plain_message
 
-        response = json.loads(await self._communicate_raw(msg))
-        if "STATUS" in response and response["STATUS"] == "E":
-            logger.error(response["Msg"])
-            raise Exception(msg + "\n" + response["Msg"])
+        response = await self._communicate_raw(message)
+        try:
+            json_response = json.loads(response)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse response {response}") from e
 
         if encrypted:
-            resp_ciphertext = b64decode(response["enc"])
-            resp_plaintext = self._cipher.decrypt(resp_ciphertext).decode().split("\x00")[0]
-            return json.loads(resp_plaintext)
-        return response
+            resp_plaintext: str = self._cipher.decrypt(b64decode(json_response["enc"])).decode("utf-8").rstrip('\0\n ')
+            if not resp_plaintext:
+                raise InvalidResponse()
+            if resp_plaintext == "Socket connect failed: Connection refused":
+                raise MinerOffline()
+            plain_response = json.loads(resp_plaintext)
+            _check_response(plain_message, plain_response)
+            return plain_response
+
+        _check_response(message, json_response)
+        return json_response
 
     async def _get_token(self) -> str:
         """
@@ -77,11 +153,11 @@ class WhatsminerAPI(object):
         if self._token_time is not None and (now - self._token_time).total_seconds() < 29 * 60:
             return self._token
 
-        response = json.loads(await self._communicate_raw(json.dumps({'cmd': 'get_token'})))
-        token_info = response["Msg"]
-        if token_info == "over max connect":
-            raise Exception(response)
+        message = json.dumps({'cmd': 'get_token'})
+        response = json.loads(await self._communicate_raw(message))
+        _check_response(message, response)
 
+        token_info = response["Msg"]
         key = crypt(self._admin_password, "$1$" + token_info["salt"] + '$').split('$')[3]
         self._cipher = AES.new(binascii.unhexlify(hashlib.sha256(key.encode()).hexdigest().encode()), AES.MODE_ECB)
         self._token = crypt(key + token_info["time"], "$1$" + token_info["newsalt"] + '$').split('$')[3]
@@ -93,6 +169,9 @@ class WhatsminerAPI(object):
 
     async def write(self, cmd: str, additional_params: Optional[Dict] = None) -> Dict[str, Any]:
         return await self._communicate(cmd, additional_params, encrypted=True)
+
+    async def check(self):
+        await self._get_token()
 
 
 # ================================ misc helpers ================================

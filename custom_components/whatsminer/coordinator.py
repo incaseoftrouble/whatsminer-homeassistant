@@ -1,4 +1,3 @@
-import dataclasses
 import json
 import logging
 from datetime import timedelta
@@ -6,6 +5,8 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
 import async_timeout
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -13,7 +14,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .api import WhatsminerAPI
-from .const import DOMAIN, MINER
+from .const import DOMAIN, CONF_HOST, CONF_PORT, CONF_PASSWORD
 
 
 @dataclass
@@ -24,7 +25,7 @@ class MinerData(object):
 
 
 class WhatsminerCoordinator(DataUpdateCoordinator[MinerData]):
-    def __init__(self, hass, entry):
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
         super().__init__(
             hass,
             logging.getLogger(__name__),
@@ -32,7 +33,11 @@ class WhatsminerCoordinator(DataUpdateCoordinator[MinerData]):
             update_method=self.async_fetch,
             update_interval=timedelta(seconds=5)
         )
-        self.miner: WhatsminerAPI = hass.data[DOMAIN][entry.entry_id][MINER]
+
+        host = entry.data[CONF_HOST]
+        port = entry.data[CONF_PORT]
+        password = entry.data[CONF_PASSWORD]
+        self.miner: WhatsminerAPI = WhatsminerAPI(host, port, password)
         self.device_model: Optional[str] = None
 
     async def async_fetch(self) -> MinerData:
