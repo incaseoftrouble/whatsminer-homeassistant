@@ -9,11 +9,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .api import WhatsminerAPI
+from .api import WhatsminerMachine
 from .const import DOMAIN, COORDINATOR, MINER
 from .coordinator import WhatsminerCoordinator
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.SWITCH]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     miner_coordinator = WhatsminerCoordinator(hass, entry)
     await miner_coordinator.async_refresh()
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id][COORDINATOR] = miner_coordinator
+    hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})[COORDINATOR] = miner_coordinator
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
     # entry.async_on_unload(entry.add_update_listener(async_update_options))
     return True

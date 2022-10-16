@@ -1,8 +1,7 @@
-import json
 import logging
-from datetime import timedelta
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
+from datetime import timedelta
+from typing import Optional
 
 import async_timeout
 from homeassistant.config_entries import ConfigEntry
@@ -13,20 +12,28 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .api import WhatsminerAPI
-from .const import DOMAIN, CONF_HOST, CONF_PORT, CONF_PASSWORD
+from .api import WhatsminerMachine, WhatsminerApi, Summary, PowerUnitDetails, Version, WhatsminerException, TokenError, \
+    DecodeError, MinerOffline
+from .const import DOMAIN, CONF_HOST, CONF_PORT, CONF_PASSWORD, CONF_MAC
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
 class MinerData(object):
-    device_model: str
-    pools: Dict[str, Any]
-    summary: Dict[str, Any]
+    device_model: str | None
+
+
+@dataclass
+class OnlineMinerData(MinerData):
+    summary: Summary
+    power_unit: PowerUnitDetails
+    version: Version
 
 
 class WhatsminerCoordinator(DataUpdateCoordinator[MinerData]):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
-        super().__init__(
+        super(WhatsminerCoordinator, self).__init__(
             hass,
             logging.getLogger(__name__),
             name=DOMAIN,
@@ -37,23 +44,34 @@ class WhatsminerCoordinator(DataUpdateCoordinator[MinerData]):
         host = entry.data[CONF_HOST]
         port = entry.data[CONF_PORT]
         password = entry.data[CONF_PASSWORD]
-        self.miner: WhatsminerAPI = WhatsminerAPI(host, port, password)
+        self.machine = WhatsminerMachine(host, port, password)
+        self.api: WhatsminerApi = WhatsminerApi(self.machine)
+        self.device_host: str = host
         self.device_model: Optional[str] = None
+        self.device_mac: str = entry.data[CONF_MAC]
 
     async def async_fetch(self) -> MinerData:
         try:
+            await self.api.get_status()
+
             if self.device_model is None:
                 async with async_timeout.timeout(10):
-                    details = await self.miner.read(cmd="devdetails")
-                    self.device_model = details["DEVDETAILS0"]["Model"]
-
+                    details = await self.api.get_device_details()
+                    self.device_model = details[0].model
             async with async_timeout.timeout(10):
-                summary = await self.miner.read(cmd="summary")
+                summary = await self.api.get_summary()
             async with async_timeout.timeout(10):
-                pools = await self.miner.read(cmd="pools")
-            return MinerData(self.device_model, pools, summary)
+                psu = await self.api.get_psu()
+            async with async_timeout.timeout(10):
+                version = await self.api.get_version()
 
-        except json.JSONDecodeError as err:
-            raise ConfigEntryAuthFailed from err
-        except Exception as err:
-            raise UpdateFailed(f"Error communicating with API: {err}")
+            return OnlineMinerData(self.device_model, summary=summary, power_unit=psu, version=version)
+        except (TokenError, DecodeError) as error:
+            raise ConfigEntryAuthFailed from error
+        except MinerOffline:
+            return MinerData(self.device_model)
+        except WhatsminerException as error:
+            raise UpdateFailed from error
+        except Exception as error:
+            _LOGGER.warning("Unexpected error: %s", error)
+            raise UpdateFailed from error

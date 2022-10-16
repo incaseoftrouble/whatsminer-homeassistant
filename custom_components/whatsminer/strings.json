@@ -1,9 +1,7 @@
 {
-  "title": "Whatsminer API",
   "config": {
     "step": {
       "user": {
-        "title": "Whatsminer",
         "description": "Specify Whatsminer machine",
         "data": {
           "host": "[%key:common::config_flow::data::host%]",

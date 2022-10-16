@@ -1,0 +1,25 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Device is already configured"
+        },
+        "error": {
+            "api_denied": "Miner API disabled",
+            "cannot_connect": "Failed to connect",
+            "invalid_auth": "Invalid authentication",
+            "token_exceeded": "Token requests exceeded",
+            "unknown": "Unexpected error.",
+            "unsupported_version": "Unsupported miner API version"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "host": "Host",
+                    "password": "Password",
+                    "port": "Port"
+                },
+                "description": "Specify Whatsminer machine"
+            }
+        }
+    }
+}
