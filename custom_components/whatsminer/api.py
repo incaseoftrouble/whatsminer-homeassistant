@@ -35,6 +35,7 @@ class InvalidResponse(WhatsminerException):
 class InvalidAuth(WhatsminerException):
     pass
 
+
 class InvalidMessage(WhatsminerException):
     pass
 
@@ -94,10 +95,12 @@ class WhatsminerMachine(object):
         self._token_time = None
         self._cipher = None
 
-    async def _communicate_raw(self, data: str, expect_response: bool = True) -> str | None:
+    async def _communicate_raw(
+        self, data: str, expect_response: bool = True
+    ) -> Optional[str]:
         r, w = await asyncio.open_connection(host=self.host, port=self.port)
         logger.debug("Writing message %s", data)
-        w.write(data.encode('utf-8'))
+        w.write(data.encode("utf-8"))
         try:
             if expect_response:
                 response = (await r.readline()).decode("utf-8").strip()
@@ -106,8 +109,13 @@ class WhatsminerMachine(object):
         finally:
             w.close()
 
-    async def communicate(self, cmd: str, additional: Optional[Dict[str, Any]] = None, encrypted=False,
-                          expect_response=True) -> Dict | None:
+    async def communicate(
+        self,
+        cmd: str,
+        additional: Optional[Dict[str, Any]] = None,
+        encrypted=False,
+        expect_response=True,
+    ) -> Optional[Dict]:
         if additional:
             data = dict(additional)
         else:
@@ -118,8 +126,12 @@ class WhatsminerMachine(object):
 
         plain_message = json.dumps(data)
         if encrypted:
-            enc_str = base64.encodebytes(self._cipher.encrypt(pad(plain_message))).decode("utf-8").replace('\n', '')
-            message = json.dumps({'enc': 1, 'data': enc_str})
+            enc_str = (
+                base64.encodebytes(self._cipher.encrypt(pad(plain_message)))
+                .decode("utf-8")
+                .replace("\n", "")
+            )
+            message = json.dumps({"enc": 1, "data": enc_str})
         else:
             message = plain_message
 
@@ -138,8 +150,11 @@ class WhatsminerMachine(object):
             if json_response.get("Code", 0) == 23:
                 raise InvalidAuth()
             try:
-                resp_plaintext: str = self._cipher.decrypt(b64decode(json_response["enc"])).decode("utf-8")\
-                    .rstrip('\0\n ')
+                resp_plaintext: str = (
+                    self._cipher.decrypt(b64decode(json_response["enc"]))
+                    .decode("utf-8")
+                    .rstrip("\0\n ")
+                )
                 if not resp_plaintext:
                     raise InvalidResponse()
                 plain_response = json.loads(resp_plaintext)
@@ -166,17 +181,25 @@ class WhatsminerMachine(object):
 
         now = datetime.datetime.now()
 
-        if self._token_time is not None and (now - self._token_time).total_seconds() < 29 * 60:
+        if (
+            self._token_time is not None
+            and (now - self._token_time).total_seconds() < 29 * 60
+        ):
             return self._token
 
-        message = json.dumps({'cmd': 'get_token'})
+        message = json.dumps({"cmd": "get_token"})
         response = json.loads(await self._communicate_raw(message))
         _check_response(message, response)
 
         token_info = response["Msg"]
-        key = crypt(self._admin_password, f"$1${token_info['salt']}$").split('$')[3]
-        self._cipher = AES.new(binascii.unhexlify(hashlib.sha256(key.encode()).hexdigest().encode()), AES.MODE_ECB)
-        self._token = crypt(key + token_info["time"], f"$1${token_info['newsalt']}$").split('$')[3]
+        key = crypt(self._admin_password, f"$1${token_info['salt']}$").split("$")[3]
+        self._cipher = AES.new(
+            binascii.unhexlify(hashlib.sha256(key.encode()).hexdigest().encode()),
+            AES.MODE_ECB,
+        )
+        self._token = crypt(
+            key + token_info["time"], f"$1${token_info['newsalt']}$"
+        ).split("$")[3]
         self._token_time = now
         return self._token
 
@@ -194,7 +217,7 @@ class Summary(object):
     hash_rate_15m: float
     average_frequency: float
     target_frequency: float
-    target_hash_rate: int
+    target_hash_rate: float
 
     accepted: int
     rejected: int
@@ -270,7 +293,9 @@ class WhatsminerApi(object):
         self.machine = machine
 
     async def get_device_details(self) -> List[DeviceDetails]:
-        response = await self.machine.communicate("devdetails", encrypted=False, expect_response=True)
+        response = await self.machine.communicate(
+            "devdetails", encrypted=False, expect_response=True
+        )
         try:
             return [
                 DeviceDetails(
@@ -279,23 +304,26 @@ class WhatsminerApi(object):
                     identifier=details["ID"],
                     driver=details["Driver"],
                     kernel=details["Kernel"],
-                    model=details["Model"]
-                ) for details in response["DEVDETAILS"]
+                    model=details["Model"],
+                )
+                for details in response["DEVDETAILS"]
             ]
         except KeyError as error:
             raise InvalidResponse() from error
 
     async def get_summary(self) -> Summary:
-        response = await self.machine.communicate("summary", encrypted=False, expect_response=True)
+        response = await self.machine.communicate(
+            "summary", encrypted=False, expect_response=True
+        )
         try:
             data = response["SUMMARY"][0]
             return Summary(
                 elapsed=data["Elapsed"],
-                average_hash_rate=data["MHS av"],
-                hash_rate_5s=data["MHS 5s"],
-                hash_rate_1m=data["MHS 1m"],
-                hash_rate_5m=data["MHS 5m"],
-                hash_rate_15m=data["MHS 15m"],
+                average_hash_rate=round(data["MHS av"] / (1000 * 1000), 2),
+                hash_rate_5s=round(data["MHS 5s"] / (1000 * 1000), 2),
+                hash_rate_1m=round(data["MHS 1m"] / (1000 * 1000), 2),
+                hash_rate_5m=round(data["MHS 5m"] / (1000 * 1000), 2),
+                hash_rate_15m=round(data["MHS 15m"] / (1000 * 1000), 2),
                 accepted=data["Accepted"],
                 rejected=data["Rejected"],
                 temperature=data["Temperature"],
@@ -309,19 +337,21 @@ class WhatsminerApi(object):
                 uptime=data["Uptime"],
                 security_mode=data["Security Mode"] == 0,
                 target_frequency=data["Target Freq"],
-                target_hash_rate=data["Target MHS"],
+                target_hash_rate=data["Target MHS"] / (1000 * 1000),
                 environment_temperature=data["Env Temp"],
                 power_mode=data["Power Mode"],
                 chip_temperature_minimum=data["Chip Temp Min"],
                 chip_temperature_maximum=data["Chip Temp Max"],
                 chip_temperature_average=data["Chip Temp Avg"],
-                mac=data["MAC"]
+                mac=data["MAC"],
             )
         except KeyError as error:
             raise InvalidResponse() from error
 
     async def get_psu(self) -> PowerUnitDetails:
-        response = await self.machine.communicate("get_psu", encrypted=False, expect_response=True)
+        response = await self.machine.communicate(
+            "get_psu", encrypted=False, expect_response=True
+        )
         try:
             data = response["Msg"]
             return PowerUnitDetails(
@@ -339,13 +369,12 @@ class WhatsminerApi(object):
             raise InvalidResponse() from error
 
     async def get_version(self) -> Version:
-        response = await self.machine.communicate("get_version", encrypted=False, expect_response=True)
+        response = await self.machine.communicate(
+            "get_version", encrypted=False, expect_response=True
+        )
         try:
             data = response["Msg"]
-            return Version(
-                api_version=data["api_ver"],
-                firmware_version=data["fw_ver"]
-            )
+            return Version(api_version=data["api_ver"], firmware_version=data["fw_ver"])
         except KeyError as error:
             raise InvalidResponse() from error
 
@@ -368,28 +397,38 @@ class WhatsminerApi(object):
     #         raise InvalidResponse() from error
 
     async def get_status(self) -> MinerStatus:
-        response = await self.machine.communicate("status", encrypted=False, expect_response=True)
+        response = await self.machine.communicate(
+            "status", encrypted=False, expect_response=True
+        )
         try:
             data = response["Msg"]
             return MinerStatus(
                 miner_online=data["btmineroff"] == "false",
-                firmware_version=cast(str, data["Firmware Version"]).strip('\'')
+                firmware_version=cast(str, data["Firmware Version"]).strip("'"),
             )
         except KeyError as error:
             raise InvalidResponse() from error
 
     async def restart_miner(self):
-        await self.machine.communicate("restart_btminer", encrypted=True, expect_response=True)
+        await self.machine.communicate(
+            "restart_btminer", encrypted=True, expect_response=True
+        )
 
     async def power_off_miner(self):
-        await self.machine.communicate("power_off", additional={"respbefore": "true"},
-                                       encrypted=True, expect_response=True)
+        await self.machine.communicate(
+            "power_off",
+            additional={"respbefore": "true"},
+            encrypted=True,
+            expect_response=True,
+        )
 
     async def power_on_miner(self):
         await self.machine.communicate("power_on", encrypted=True, expect_response=True)
 
     async def set_power_mode(self):
-        await self.machine.communicate("set_lower_power", encrypted=True, expect_response=True)
+        await self.machine.communicate(
+            "set_lower_power", encrypted=True, expect_response=True
+        )
 
     async def reboot(self):
         await self.machine.communicate("reboot", encrypted=True, expect_response=True)
@@ -397,23 +436,34 @@ class WhatsminerApi(object):
     async def set_target_frequency(self, percent: int):
         if not -10 <= percent <= 100:
             raise ValueError
-        await self.machine.communicate("set_target_freq", additional={"percent": str(percent)},
-                                       encrypted=True, expect_response=True)
+        await self.machine.communicate(
+            "set_target_freq",
+            additional={"percent": str(percent)},
+            encrypted=True,
+            expect_response=True,
+        )
 
     async def set_power_percent(self, percent: int):
         if not 0 <= percent <= 100:
             raise ValueError
-        await self.machine.communicate("set_power_pct", additional={"percent": str(percent)},
-                                       encrypted=True, expect_response=True)
+        await self.machine.communicate(
+            "set_power_pct",
+            additional={"percent": str(percent)},
+            encrypted=True,
+            expect_response=True,
+        )
 
     async def set_miner_fast_boot(self, enable: bool):
-        await self.machine.communicate("enable_cgminer_fast_boot" if enable else "disable_cgminer_fast_boot",
-                                       encrypted=True, expect_response=True)
+        await self.machine.communicate(
+            "enable_cgminer_fast_boot" if enable else "disable_cgminer_fast_boot",
+            encrypted=True,
+            expect_response=True,
+        )
 
 
 # ================================ misc helpers ================================
 def crypt(word, salt):
-    standard_salt = re.compile('\\s*\\$(\\d+)\\$([\\w./]*)\\$')
+    standard_salt = re.compile("\\s*\\$(\\d+)\\$([\\w./]*)\\$")
     match = standard_salt.match(salt)
     if not match:
         raise ValueError("salt format is not correct")
@@ -424,5 +474,5 @@ def crypt(word, salt):
 
 def pad(s):
     if len(s) % 16:
-        s += '\0' * (16 - len(s) % 16)
+        s += "\0" * (16 - len(s) % 16)
     return str.encode(s, "utf-8")

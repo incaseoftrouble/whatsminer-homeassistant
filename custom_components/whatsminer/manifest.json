@@ -2,8 +2,13 @@
   "domain": "whatsminer",
   "name": "Whatsminer API",
   "dependencies": [],
-  "codeowners": ["@incaseoftrouble"],
-  "requirements": ["passlib", "pycryptodome"],
+  "codeowners": [
+    "@incaseoftrouble"
+  ],
+  "requirements": [
+    "passlib",
+    "pycryptodome"
+  ],
   "iot_class": "local_polling",
   "documentation": "https://github.com/incaseoftrouble/whatsminer-homeassistant",
   "version": "0.1.0",

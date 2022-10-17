@@ -12,8 +12,17 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .api import WhatsminerMachine, WhatsminerApi, Summary, PowerUnitDetails, Version, WhatsminerException, TokenError, \
-    DecodeError, MinerOffline
+from .api import (
+    WhatsminerMachine,
+    WhatsminerApi,
+    Summary,
+    PowerUnitDetails,
+    Version,
+    WhatsminerException,
+    TokenError,
+    DecodeError,
+    MinerOffline,
+)
 from .const import DOMAIN, CONF_HOST, CONF_PORT, CONF_PASSWORD, CONF_MAC
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,7 +30,7 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class MinerData(object):
-    device_model: str | None
+    device_model: Optional[str]
 
 
 @dataclass
@@ -38,7 +47,7 @@ class WhatsminerCoordinator(DataUpdateCoordinator[MinerData]):
             logging.getLogger(__name__),
             name=DOMAIN,
             update_method=self.async_fetch,
-            update_interval=timedelta(seconds=5)
+            update_interval=timedelta(seconds=5),
         )
 
         host = entry.data[CONF_HOST]
@@ -65,7 +74,9 @@ class WhatsminerCoordinator(DataUpdateCoordinator[MinerData]):
             async with async_timeout.timeout(10):
                 version = await self.api.get_version()
 
-            return OnlineMinerData(self.device_model, summary=summary, power_unit=psu, version=version)
+            return OnlineMinerData(
+                self.device_model, summary=summary, power_unit=psu, version=version
+            )
         except (TokenError, DecodeError) as error:
             raise ConfigEntryAuthFailed from error
         except MinerOffline:

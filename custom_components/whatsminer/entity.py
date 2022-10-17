@@ -13,18 +13,22 @@ class WhatsminerEntity(CoordinatorEntity[WhatsminerCoordinator]):
     @property
     def device_info(self):
         return DeviceInfo(
-            identifiers={
-                (DOMAIN, self.unique_id)
-            },
+            identifiers={(DOMAIN, self.coordinator.device_mac)},
             connections={(CONNECTION_NETWORK_MAC, self.coordinator.device_mac)},
-            configuration_url=f"http://{self.coordinator.device_host}",
-            name=self.name,
+            configuration_url=f"https://{self.coordinator.device_host}",
+            name=f"Miner {self.coordinator.device_mac}",
             manufacturer="Whatsminer",
             model=self.coordinator.device_model,
         )
+
+    @property
+    def has_entity_name(self) -> bool:
+        return True
 
 
 class OnlineWhatsminerEntity(WhatsminerEntity):
     @property
     def available(self) -> bool:
-        return super(WhatsminerEntity, self).available and isinstance(self.coordinator.data, OnlineMinerData)
+        return super(WhatsminerEntity, self).available and isinstance(
+            self.coordinator.data, OnlineMinerData
+        )
